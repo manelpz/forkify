@@ -1,0 +1,1 @@
+(()=>{"use strict";console.log("import module"),console.log("import 23 from module")})();
