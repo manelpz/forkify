@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "webpack  --mode development",
     "build": "webpack --mode production",
-    "start":"webpack-dev-server --mode development  --open"
+    "start": "webpack-dev-server --mode development  --open"
   },
   "repository": {
     "type": "git",
@@ -23,6 +23,7 @@
     "webpack-cli": "^3.3.12"
   },
   "devDependencies": {
+    "html-webpack-plugin": "^4.4.1",
     "webpack-dev-server": "^3.11.0"
   }
 }
