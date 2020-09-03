@@ -1,0 +1,11 @@
+{
+    "preset": [
+        "env",{
+            "target":{
+                "browsers":[
+                    "last 5 versions"
+                ]
+            }
+        }
+    ]
+}
