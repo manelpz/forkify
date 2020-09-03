@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/manelpz/forkify#readme",
   "dependencies": {
+    "babel-polyfill": "^6.26.0",
     "webpack": "^5.0.0-beta.29",
     "webpack-cli": "^3.3.12"
   },
