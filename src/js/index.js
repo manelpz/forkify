@@ -1,14 +1,6 @@
-import axios from 'axios';
+import Search from './models/Search';
 
-async function getResults(query){
-    const proxy = 'https://api.allorigins.win/get?url=';
-    
-    try{
-    const res = await axios(`https://forkify-api.herokuapp.com/api/search?&q=${query}`);
-    const recipies = res.data.recipes;
-    console.log(recipies);
-    }catch(error){
-        alert(error);
-    }
-}
-getResults('pizza');
+const search = new Search('pizza');
+console.log(search);
+
+search.getResults();
