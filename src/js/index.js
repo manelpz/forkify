@@ -5,6 +5,10 @@ const state = {};
 
 const controlSearch = () => {
     const query = 'pizza'
+
+    if (query){
+        state.search = new Search(query);
+    }       
 }
 
 document.querySelector('.search').addEventListener('submit', e=>{
@@ -13,8 +17,6 @@ document.querySelector('.search').addEventListener('submit', e=>{
 });
 
 
-const search = new Search('pizza');
-console.log(search);
 
 search.getResults();
 
