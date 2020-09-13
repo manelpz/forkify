@@ -6,7 +6,7 @@ import Search from './models/Search';
 const state = {};
 
 const controlSearch = async() => {
-    const query = 'pizza'
+    const query = searchView.getInput();
 
     if (query){
         // new search object 
