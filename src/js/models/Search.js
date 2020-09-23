@@ -1,5 +1,6 @@
 
 import axios from 'axios';
+import {proxy} from  '../config.js';
 
 export default class search{
     constructor(query){
@@ -7,7 +8,7 @@ export default class search{
     }
 
     async getResults(query){
-        const proxy = 'https://api.allorigins.win/get?url=';
+        //const proxy = 'https://api.allorigins.win/get?url=';
         
         try{
         const res = await axios(`https://forkify-api.herokuapp.com/api/search?&q=${this.query}`);
