@@ -42,9 +42,22 @@ elements.searchResPages.addEventListener('click', e =>{
     }
 });
 
-const controlRecipe = () => {
-    const id = window.location.hash;
+const controlRecipe = async() => {
+    const id = window.location.hash.replace('#','');
     console.log(id);
+
+    if(id){
+
+        state.recipe  = new Recipe(id);
+
+        await state.recipe.getRecipe();
+
+         state.recipe.calcTime();
+
+         state.recipe.calcServings();
+
+        console.log(state.recipe);
+    }
 };
 
 window.addEventListener('hashchange', controlRecipe);

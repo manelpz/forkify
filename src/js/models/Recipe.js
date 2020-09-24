@@ -22,13 +22,13 @@ export default class Recipe {
         }
     }
 
-    calcTime(){
+     calcTime(){
         const numIng = this.ingredients.length;
         const periods = Math.ceil(numIng / 3);
         this.time = periods * 15;
     }
 
-    calcServings(){
+     calcServings(){
         this.servings = 4;
     }
 
