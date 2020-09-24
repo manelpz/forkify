@@ -33,7 +33,7 @@ elements.searchForm.addEventListener('submit', e=>{
 });
 
 elements.searchResPages.addEventListener('click', e =>{
-    
+    //console.log("hi");
     const btn = e.target.closest('.btn-inline');
     if(btn){
         const goToPage = parseInt(btn.dataset.goto,10);
@@ -42,7 +42,7 @@ elements.searchResPages.addEventListener('click', e =>{
     }
 });
 
-const controlRecipe = ()=> {
+const controlRecipe = () => {
     const id = window.location.hash;
     console.log(id);
 };
