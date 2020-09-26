@@ -38,7 +38,10 @@ export default class Recipe {
 
         const newIngredients = this.ingredients.map(el=>{
 
-            let ingredient = 
+            let ingredient = el.toLowerCase();
+            unitsLong.forEach((unit,i) =>{
+                ingredient = ingredients.replace(unit,unitShort[i]);
+            });
         });
         this.ingredients = newIngredients;
     }
