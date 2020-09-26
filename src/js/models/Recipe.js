@@ -40,8 +40,12 @@ export default class Recipe {
 
             let ingredient = el.toLowerCase();
             unitsLong.forEach((unit,i) =>{
-                ingredient = ingredients.replace(unit,unitShort[i]);
+                ingredient = ingredient.replace(unit,unitShort[i]);
             });
+
+            ingredient = ingredient.replace(/ *\([^)]*\) */g, '');
+
+            return ingredient;
         });
         this.ingredients = newIngredients;
     }
