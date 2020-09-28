@@ -45,15 +45,29 @@ export default class Recipe {
 
             ingredient = ingredient.replace(/ *\([^)]*\) */g, ' ');
 
+            let objIng;
             if(unitIndex >-1){
+                const arrCount = arrIng.slice(0, unitIndex);
 
+                let count;
+                if(arrCount.length === 1){
+                    count = arrIng[0];
+                }
             }else if (parseInt(arrIng[0],10)){
-
+                objIng = {
+                    count: parseInt(arrIng[0], 10),
+                    unit: '',
+                    ingredient: arrIng.slice(1).join(' ')
+                }
             }else if (unitIndex == -1){
-                
+                objIng ={
+                    count:1,
+                    unit:'',
+                    ingredient
+                }
             }
 
-            return ingredient;
+            return objIng;
         });
         this.ingredients = newIngredients;
     }
