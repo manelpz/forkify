@@ -9,8 +9,8 @@ const state = {};
 
 
 const controlSearch = async() => {
-    //const query = searchView.getInput();
-    const query = 'pizza';
+    const query = searchView.getInput();
+    //const query = 'pizza';
 
 
     if (query){
@@ -32,17 +32,13 @@ const controlSearch = async() => {
         }
     }   
 }
-/*
+
 elements.searchForm.addEventListener('submit', e=>{
     e.preventDefault();
     controlSearch();
-});*/
-
-//TEST
-window.addEventListener('load', e=>{
-    e.preventDefault();
-    controlSearch();
 });
+
+
 
 elements.searchResPages.addEventListener('click', e =>{
     //console.log("hi");
@@ -56,7 +52,7 @@ elements.searchResPages.addEventListener('click', e =>{
 
 const controlRecipe = async() => {
     const id = window.location.hash.replace('#','');
-    console.log(id);
+    //console.log(id);
 
     if(id){
 
@@ -67,6 +63,7 @@ const controlRecipe = async() => {
         try{
                 await state.recipe.getRecipe();
 
+                state.recipe.parseIngredients();
                 state.recipe.calcTime();
 
                 state.recipe.calcServings();
