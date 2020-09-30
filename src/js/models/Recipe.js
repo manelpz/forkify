@@ -45,7 +45,10 @@ export default class Recipe {
 
             ingredient = ingredient.replace(/ *\([^)]*\) */g, ' ');
 
-            let objIng;
+            const arrIng = ingredient.split(' ');
+            const unitIndex = arrIng.findIndex(el2 => unitShort.includes(el2));
+
+            
             if(unitIndex >-1){
                 const arrCount = arrIng.slice(0, unitIndex);
 
