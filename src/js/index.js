@@ -1,5 +1,6 @@
 import {elements, renderLoader, clearLoader} from './views/base';
-import * as searchView from './views/SearchView'
+import * as searchView from './views/SearchView';
+import * as recipeView from './views/RecipeView';
 import Search from './models/Search';
 import Recipe from './models/Recipe';
 
