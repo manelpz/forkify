@@ -12,11 +12,12 @@ const createIngredient = ingredient => `
         </li>`;
 
 export const renderRecipe = Recipe =>{
+    console.log(Recipe);
     const markup = `
     <figure class="recipe__fig">
-    <img src="${recipe.img}" alt="${recipe.title}" class="recipe__img">
+    <img src="${Recipe.img}" alt="${Recipe.title}" class="recipe__img">
     <h1 class="recipe__title">
-        <span>${recipe.title}</span>
+        <span>${Recipe.title}</span>
     </h1>
 </figure>
 <div class="recipe__details">
@@ -24,14 +25,14 @@ export const renderRecipe = Recipe =>{
         <svg class="recipe__info-icon">
             <use href="img/icons.svg#icon-stopwatch"></use>
         </svg>
-        <span class="recipe__info-data recipe__info-data--minutes">${recipe.time}</span>
+        <span class="recipe__info-data recipe__info-data--minutes">${Recipe.time}</span>
         <span class="recipe__info-text"> minutes</span>
     </div>
     <div class="recipe__info">
         <svg class="recipe__info-icon">
             <use href="img/icons.svg#icon-man"></use>
         </svg>
-        <span class="recipe__info-data recipe__info-data--people">${recipe.servings}</span>
+        <span class="recipe__info-data recipe__info-data--people">${Recipe.servings}</span>
         <span class="recipe__info-text"> servings</span>
 
         <div class="recipe__info-buttons">
@@ -59,9 +60,7 @@ export const renderRecipe = Recipe =>{
 
 <div class="recipe__ingredients">
     <ul class="recipe__ingredient-list">
-
-
-
+        ${Recipe.ingredients.map(el => createIngredient(el)).join('')}
     </ul>
 
     <button class="btn-small recipe__btn">
@@ -76,9 +75,9 @@ export const renderRecipe = Recipe =>{
     <h2 class="heading-2">How to cook it</h2>
     <p class="recipe__directions-text">
         This recipe was carefully designed and tested by
-        <span class="recipe__by">${recipe.author}</span>. Please check out directions at their website.
+        <span class="recipe__by">${Recipe.author}</span>. Please check out directions at their website.
     </p>
-    <a class="btn-small recipe__btn" href="${recipe.url}">
+    <a class="btn-small recipe__btn" href="${Recipe.url}">
         <span>Directions</span>
         <svg class="search__icon">
             <use href="img/icons.svg#icon-triangle-right"></use>
