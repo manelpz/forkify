@@ -65,11 +65,14 @@ const renderButtons = (page,  numResults, resPerPage) => {
     }else if (page === pages && pages > 1){
         button = createButton(page, 'prev');
     }
-
     elements.searchResPages.insertAdjacentHTML('afterbegin', button);
 };
 
 export const highlightSelected = id =>{
+    const resultsArr = Array.from(document.querySelectorAll('.results__link'));
+    resultsArr.forEach(el => {
+        el.classList.remove('results__link--active');
+    });
     document.querySelector(`a[href*="${id}"]`).classList.add('results__link--active');
 };
 
