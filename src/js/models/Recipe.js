@@ -15,6 +15,7 @@ export default class Recipe {
             this.img = res.data.recipe.image_url;
             this.url = res.data.recipe.source_url;
             this.ingredients = res.data.recipe.ingredients;
+            //console.log(res);
 
         }catch(error){
             console.log(error);
@@ -35,7 +36,7 @@ export default class Recipe {
     parseIngredients(){
         const unitsLong = ['tablespoons', 'tablespoon','ounces','ounce','teaspoons','teaspoon','cups','pounds'];
         const unitShort = ['tbsp', 'tbsp', 'oz', 'oz', 'tsp', 'tsp','cup','pound'];
-        const units = [... unitShort, 'kg', 'g'];
+        const units = [...unitShort, 'kg', 'g'];
 
         const newIngredients = this.ingredients.map(el=>{
 
@@ -47,7 +48,7 @@ export default class Recipe {
             ingredient = ingredient.replace(/ *\([^)]*\) */g, ' ');
 
             const arrIng = ingredient.split(' ');
-            const unitIndex = arrIng.findIndex(el2 => unit.includes(el2));
+            const unitIndex = arrIng.findIndex(el2 => units.includes(el2));
 
             let objIng;
             if(unitIndex >-1){
