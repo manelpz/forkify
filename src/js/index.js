@@ -56,6 +56,8 @@ const controlRecipe = async() => {
     //console.log(id);
 
     if(id){
+
+        recipeView.clearRecipe();
         renderLoader(elements.recipe);
         state.recipe  = new Recipe(id);
 
