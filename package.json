@@ -21,7 +21,6 @@
   "dependencies": {
     "axios": "^0.20.0",
     "babel-polyfill": "^6.26.0",
-    "fractional": "^1.0.0",
     "webpack": "^5.0.0-beta.29",
     "webpack-cli": "^3.3.12"
   },
