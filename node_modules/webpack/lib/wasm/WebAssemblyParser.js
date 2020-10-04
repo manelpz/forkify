@@ -2,22 +2,19 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
 const t = require("@webassemblyjs/ast");
+const { decode } = require("@webassemblyjs/wasm-parser");
 const {
 	moduleContextFromModuleAST
 } = require("@webassemblyjs/helper-module-context");
-const { decode } = require("@webassemblyjs/wasm-parser");
-const Parser = require("../Parser");
-const StaticExportsDependency = require("../dependencies/StaticExportsDependency");
-const WebAssemblyExportImportedDependency = require("../dependencies/WebAssemblyExportImportedDependency");
+
+const { Tapable } = require("tapable");
 const WebAssemblyImportDependency = require("../dependencies/WebAssemblyImportDependency");
+const WebAssemblyExportImportedDependency = require("../dependencies/WebAssemblyExportImportedDependency");
 
 /** @typedef {import("../Module")} Module */
-/** @typedef {import("../Parser").ParserState} ParserState */
-/** @typedef {import("../Parser").PreparsedAst} PreparsedAst */
 
 const JS_COMPAT_TYPES = new Set(["i32", "f32", "f64"]);
 
@@ -62,36 +59,26 @@ const decoderOpts = {
 	ignoreCustomNameSection: true
 };
 
-class WebAssemblyParser extends Parser {
+class WebAssemblyParser extends Tapable {
 	constructor(options) {
 		super();
-		this.hooks = Object.freeze({});
+		this.hooks = {};
 		this.options = options;
 	}
 
-	/**
-	 * @param {string | Buffer | PreparsedAst} source the source to parse
-	 * @param {ParserState} state the parser state
-	 * @returns {ParserState} the parser state
-	 */
-	parse(source, state) {
-		if (!Buffer.isBuffer(source)) {
-			throw new Error("WebAssemblyParser input must be a Buffer");
-		}
-
+	parse(binary, state) {
 		// flag it as ESM
-		state.module.buildInfo.strict = true;
 		state.module.buildMeta.exportsType = "namespace";
 
 		// parse it
-		const program = decode(source, decoderOpts);
+		const program = decode(binary, decoderOpts);
 		const module = program.body[0];
 
 		const moduleContext = moduleContextFromModuleAST(module);
 
 		// extract imports and exports
-		const exports = [];
-		let jsIncompatibleExports = (state.module.buildMeta.jsIncompatibleExports = undefined);
+		const exports = (state.module.buildMeta.providedExports = []);
+		const jsIncompatibleExports = (state.module.buildMeta.jsIncompatibleExports = []);
 
 		const importedGlobals = [];
 		t.traverse(module, {
@@ -99,19 +86,16 @@ class WebAssemblyParser extends Parser {
 				const descriptor = node.descr;
 
 				if (descriptor.exportType === "Func") {
-					const funcIdx = descriptor.id.value;
+					const funcidx = descriptor.id.value;
 
 					/** @type {t.FuncSignature} */
-					const funcSignature = moduleContext.getFunction(funcIdx);
+					const funcSignature = moduleContext.getFunction(funcidx);
 
 					const incompatibleType = getJsIncompatibleTypeOfFuncSignature(
 						funcSignature
 					);
 
 					if (incompatibleType) {
-						if (jsIncompatibleExports === undefined) {
-							jsIncompatibleExports = state.module.buildMeta.jsIncompatibleExports = {};
-						}
 						jsIncompatibleExports[node.name] = incompatibleType;
 					}
 				}
@@ -160,7 +144,7 @@ class WebAssemblyParser extends Parser {
 				} else if (t.isFuncImportDescr(node.descr) === true) {
 					const incompatibleType = getJsIncompatibleType(node.descr.signature);
 					if (incompatibleType) {
-						onlyDirectImport = `Non-JS-compatible Func Signature (${incompatibleType})`;
+						onlyDirectImport = `Non-JS-compatible Func Sigurature (${incompatibleType})`;
 					}
 				} else if (t.isGlobalType(node.descr) === true) {
 					const type = node.descr.valtype;
@@ -183,8 +167,6 @@ class WebAssemblyParser extends Parser {
 				}
 			}
 		});
-
-		state.module.addDependency(new StaticExportsDependency(exports, false));
 
 		return state;
 	}

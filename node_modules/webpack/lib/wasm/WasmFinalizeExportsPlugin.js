@@ -1,21 +1,12 @@
 /*
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
-*/
-
+	*/
 "use strict";
 
-const formatLocation = require("../formatLocation");
 const UnsupportedWebAssemblyFeatureError = require("./UnsupportedWebAssemblyFeatureError");
 
-/** @typedef {import("../Compiler")} Compiler */
-
 class WasmFinalizeExportsPlugin {
-	/**
-	 * Apply the plugin
-	 * @param {Compiler} compiler the compiler instance
-	 * @returns {void}
-	 */
 	apply(compiler) {
 		compiler.hooks.compilation.tap("WasmFinalizeExportsPlugin", compilation => {
 			compilation.hooks.finishModules.tap(
@@ -31,42 +22,39 @@ class WasmFinalizeExportsPlugin {
 								continue;
 							}
 
-							for (const connection of compilation.moduleGraph.getIncomingConnections(
-								module
-							)) {
-								// 2. is active and referenced by a non-WebAssembly module
-								if (
-									connection.isActive(undefined) &&
-									connection.originModule.type.startsWith("webassembly") ===
-										false
-								) {
-									const referencedExports = compilation.getDependencyReferencedExports(
-										connection.dependency,
-										undefined
+							for (const reason of module.reasons) {
+								// 2. is referenced by a non-WebAssembly module
+								if (reason.module.type.startsWith("webassembly") === false) {
+									const ref = compilation.getDependencyReference(
+										reason.module,
+										reason.dependency
 									);
 
-									for (const info of referencedExports) {
-										const names = Array.isArray(info) ? info : info.name;
-										if (names.length === 0) continue;
-										const name = names[0];
-										if (typeof name === "object") continue;
-										// 3. and uses a func with an incompatible JS signature
-										if (
-											Object.prototype.hasOwnProperty.call(
-												jsIncompatibleExports,
-												name
-											)
-										) {
-											// 4. error
-											const error = new UnsupportedWebAssemblyFeatureError(
-												`Export "${name}" with ${jsIncompatibleExports[name]} can only be used for direct wasm to wasm dependencies\n` +
-													`It's used from ${connection.originModule.readableIdentifier(
-														compilation.requestShortener
-													)} at ${formatLocation(connection.dependency.loc)}.`
-											);
-											error.module = module;
-											compilation.errors.push(error);
-										}
+									if (!ref) continue;
+
+									const importedNames = ref.importedNames;
+
+									if (Array.isArray(importedNames)) {
+										importedNames.forEach(name => {
+											// 3. and uses a func with an incompatible JS signature
+											if (
+												Object.prototype.hasOwnProperty.call(
+													jsIncompatibleExports,
+													name
+												)
+											) {
+												// 4. error
+												/** @type {any} */
+												const error = new UnsupportedWebAssemblyFeatureError(
+													`Export "${name}" with ${jsIncompatibleExports[name]} can only be used for direct wasm to wasm dependencies`
+												);
+												error.module = module;
+												error.origin = reason.module;
+												error.originLoc = reason.dependency.loc;
+												error.dependencies = [reason.dependency];
+												compilation.errors.push(error);
+											}
+										});
 									}
 								}
 							}

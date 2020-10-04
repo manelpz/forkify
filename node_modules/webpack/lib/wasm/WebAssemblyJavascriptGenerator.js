@@ -2,80 +2,48 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
-const { RawSource } = require("webpack-sources");
-const { UsageState } = require("../ExportsInfo");
 const Generator = require("../Generator");
-const InitFragment = require("../InitFragment");
-const RuntimeGlobals = require("../RuntimeGlobals");
 const Template = require("../Template");
-const ModuleDependency = require("../dependencies/ModuleDependency");
-const WebAssemblyExportImportedDependency = require("../dependencies/WebAssemblyExportImportedDependency");
+const { RawSource } = require("webpack-sources");
 const WebAssemblyImportDependency = require("../dependencies/WebAssemblyImportDependency");
+const WebAssemblyExportImportedDependency = require("../dependencies/WebAssemblyExportImportedDependency");
 
-/** @typedef {import("webpack-sources").Source} Source */
-/** @typedef {import("../Dependency")} Dependency */
-/** @typedef {import("../DependencyTemplates")} DependencyTemplates */
-/** @typedef {import("../Generator").GenerateContext} GenerateContext */
 /** @typedef {import("../NormalModule")} NormalModule */
 /** @typedef {import("../RuntimeTemplate")} RuntimeTemplate */
-
-const TYPES = new Set(["webassembly"]);
+/** @typedef {import("webpack-sources").Source} Source */
+/** @typedef {import("../Dependency").DependencyTemplate} DependencyTemplate */
 
 class WebAssemblyJavascriptGenerator extends Generator {
 	/**
-	 * @param {NormalModule} module fresh module
-	 * @returns {Set<string>} available types (do not mutate)
-	 */
-	getTypes(module) {
-		return TYPES;
-	}
-
-	/**
-	 * @param {NormalModule} module the module
-	 * @param {string=} type source type
-	 * @returns {number} estimate size of the module
-	 */
-	getSize(module, type) {
-		return 95 + module.dependencies.length * 5;
-	}
-
-	/**
 	 * @param {NormalModule} module module for which the code should be generated
-	 * @param {GenerateContext} generateContext context for generate
+	 * @param {Map<Function, DependencyTemplate>} dependencyTemplates mapping from dependencies to templates
+	 * @param {RuntimeTemplate} runtimeTemplate the runtime template
+	 * @param {string} type which kind of code should be generated
 	 * @returns {Source} generated code
 	 */
-	generate(module, generateContext) {
-		const {
-			runtimeTemplate,
-			moduleGraph,
-			chunkGraph,
-			runtimeRequirements,
-			runtime
-		} = generateContext;
-		/** @type {InitFragment[]} */
-		const initFragments = [];
-
-		const exportsInfo = moduleGraph.getExportsInfo(module);
+	generate(module, dependencyTemplates, runtimeTemplate, type) {
+		const initIdentifer = Array.isArray(module.usedExports)
+			? Template.numberToIdentifer(module.usedExports.length)
+			: "__webpack_init__";
 
 		let needExportsCopy = false;
 		const importedModules = new Map();
 		const initParams = [];
 		let index = 0;
 		for (const dep of module.dependencies) {
-			const moduleDep =
-				dep && dep instanceof ModuleDependency ? dep : undefined;
-			if (moduleGraph.getModule(dep)) {
-				let importData = importedModules.get(moduleGraph.getModule(dep));
+			const depAsAny = /** @type {any} */ (dep);
+			if (dep.module) {
+				let importData = importedModules.get(dep.module);
 				if (importData === undefined) {
 					importedModules.set(
-						moduleGraph.getModule(dep),
+						dep.module,
 						(importData = {
 							importVar: `m${index}`,
 							index,
-							request: (moduleDep && moduleDep.userRequest) || undefined,
+							request:
+								"userRequest" in depAsAny ? depAsAny.userRequest : undefined,
 							names: new Set(),
 							reexports: []
 						})
@@ -86,28 +54,20 @@ class WebAssemblyJavascriptGenerator extends Generator {
 					importData.names.add(dep.name);
 					if (dep.description.type === "GlobalType") {
 						const exportName = dep.name;
-						const importedModule = moduleGraph.getModule(dep);
+						const usedName = dep.module && dep.module.isUsed(exportName);
 
-						if (importedModule) {
-							const usedName = moduleGraph
-								.getExportsInfo(importedModule)
-								.getUsedName(exportName, runtime);
+						if (dep.module) {
 							if (usedName) {
 								initParams.push(
 									runtimeTemplate.exportFromImport({
-										moduleGraph,
-										module: importedModule,
+										module: dep.module,
 										request: dep.request,
 										importVar: importData.importVar,
 										originModule: module,
 										exportName: dep.name,
 										asiSafe: true,
 										isCall: false,
-										callContext: null,
-										defaultInterop: true,
-										initFragments,
-										runtime,
-										runtimeRequirements
+										callContext: null
 									})
 								);
 							}
@@ -116,29 +76,21 @@ class WebAssemblyJavascriptGenerator extends Generator {
 				}
 				if (dep instanceof WebAssemblyExportImportedDependency) {
 					importData.names.add(dep.name);
-					const usedName = moduleGraph
-						.getExportsInfo(module)
-						.getUsedName(dep.exportName, runtime);
+					const usedName = module.isUsed(dep.exportName);
 					if (usedName) {
-						runtimeRequirements.add(RuntimeGlobals.exports);
 						const exportProp = `${module.exportsArgument}[${JSON.stringify(
 							usedName
 						)}]`;
 						const defineStatement = Template.asString([
 							`${exportProp} = ${runtimeTemplate.exportFromImport({
-								moduleGraph,
-								module: moduleGraph.getModule(dep),
+								module: dep.module,
 								request: dep.request,
 								importVar: importData.importVar,
 								originModule: module,
 								exportName: dep.name,
 								asiSafe: true,
 								isCall: false,
-								callContext: null,
-								defaultInterop: true,
-								initFragments,
-								runtime,
-								runtimeRequirements
+								callContext: null
 							})};`,
 							`if(WebAssembly.Global) ${exportProp} = ` +
 								`new WebAssembly.Global({ value: ${JSON.stringify(
@@ -157,59 +109,43 @@ class WebAssemblyJavascriptGenerator extends Generator {
 				([module, { importVar, request, reexports }]) => {
 					const importStatement = runtimeTemplate.importStatement({
 						module,
-						chunkGraph,
 						request,
 						importVar,
-						originModule: module,
-						runtimeRequirements
+						originModule: module
 					});
-					return importStatement[0] + importStatement[1] + reexports.join("\n");
+					return importStatement + reexports.join("\n");
 				}
 			)
 		);
-
-		const copyAllExports =
-			exportsInfo.otherExportsInfo.getUsed(runtime) === UsageState.Unused &&
-			!needExportsCopy;
-
-		// need these globals
-		runtimeRequirements.add(RuntimeGlobals.module);
-		runtimeRequirements.add(RuntimeGlobals.moduleId);
-		runtimeRequirements.add(RuntimeGlobals.wasmInstances);
-		if (exportsInfo.otherExportsInfo.getUsed(runtime) !== UsageState.Unused) {
-			runtimeRequirements.add(RuntimeGlobals.makeNamespaceObject);
-			runtimeRequirements.add(RuntimeGlobals.exports);
-		}
-		if (!copyAllExports) {
-			runtimeRequirements.add(RuntimeGlobals.exports);
-		}
 
 		// create source
 		const source = new RawSource(
 			[
 				'"use strict";',
 				"// Instantiate WebAssembly module",
-				`var wasmExports = ${RuntimeGlobals.wasmInstances}[${module.moduleArgument}.id];`,
+				"var wasmExports = __webpack_require__.w[module.i];",
 
-				exportsInfo.otherExportsInfo.getUsed(runtime) !== UsageState.Unused
-					? `${RuntimeGlobals.makeNamespaceObject}(${module.exportsArgument});`
+				!Array.isArray(module.usedExports)
+					? `__webpack_require__.r(${module.exportsArgument});`
 					: "",
 
 				// this must be before import for circular dependencies
 				"// export exports from WebAssembly module",
-				copyAllExports
+				Array.isArray(module.usedExports) && !needExportsCopy
 					? `${module.moduleArgument}.exports = wasmExports;`
 					: "for(var name in wasmExports) " +
-					  `if(name) ` +
+					  `if(name != ${JSON.stringify(initIdentifer)}) ` +
 					  `${module.exportsArgument}[name] = wasmExports[name];`,
 				"// exec imports from WebAssembly module (for esm order)",
 				importsCode,
 				"",
 				"// exec wasm module",
-				`wasmExports[""](${initParams.join(", ")})`
+				`wasmExports[${JSON.stringify(initIdentifer)}](${initParams.join(
+					", "
+				)})`
 			].join("\n")
 		);
-		return InitFragment.addToSource(source, initFragments, generateContext);
+		return source;
 	}
 }
 

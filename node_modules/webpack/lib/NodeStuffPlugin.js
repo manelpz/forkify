@@ -2,70 +2,68 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
-const CachedConstDependency = require("./dependencies/CachedConstDependency");
-const {
-	evaluateToString,
-	expressionIsUnsupported
-} = require("./javascript/JavascriptParserHelpers");
-const { relative } = require("./util/fs");
+const path = require("path");
+const ParserHelpers = require("./ParserHelpers");
+const ConstDependency = require("./dependencies/ConstDependency");
 
-/** @typedef {import("webpack-sources").ReplaceSource} ReplaceSource */
-/** @typedef {import("./Compiler")} Compiler */
-/** @typedef {import("./Dependency")} Dependency */
-/** @typedef {import("./DependencyTemplates")} DependencyTemplates */
-/** @typedef {import("./RuntimeTemplate")} RuntimeTemplate */
+const NullFactory = require("./NullFactory");
 
 class NodeStuffPlugin {
 	constructor(options) {
 		this.options = options;
 	}
 
-	/**
-	 * Apply the plugin
-	 * @param {Compiler} compiler the compiler instance
-	 * @returns {void}
-	 */
 	apply(compiler) {
 		const options = this.options;
 		compiler.hooks.compilation.tap(
 			"NodeStuffPlugin",
 			(compilation, { normalModuleFactory }) => {
+				compilation.dependencyFactories.set(ConstDependency, new NullFactory());
+				compilation.dependencyTemplates.set(
+					ConstDependency,
+					new ConstDependency.Template()
+				);
+
 				const handler = (parser, parserOptions) => {
 					if (parserOptions.node === false) return;
 
 					let localOptions = options;
 					if (parserOptions.node) {
-						localOptions = { ...localOptions, ...parserOptions.node };
+						localOptions = Object.assign({}, localOptions, parserOptions.node);
 					}
 
-					const setModuleConstant = (expressionName, fn) => {
+					const setConstant = (expressionName, value) => {
 						parser.hooks.expression
 							.for(expressionName)
-							.tap("NodeStuffPlugin", expr => {
-								const dep = new CachedConstDependency(
-									JSON.stringify(fn(parser.state.module)),
-									expr.range,
-									expressionName
+							.tap("NodeStuffPlugin", () => {
+								parser.state.current.addVariable(
+									expressionName,
+									JSON.stringify(value)
 								);
-								dep.loc = expr.loc;
-								parser.state.module.addPresentationalDependency(dep);
 								return true;
 							});
 					};
 
-					const setConstant = (expressionName, value) =>
-						setModuleConstant(expressionName, () => value);
-
+					const setModuleConstant = (expressionName, fn) => {
+						parser.hooks.expression
+							.for(expressionName)
+							.tap("NodeStuffPlugin", () => {
+								parser.state.current.addVariable(
+									expressionName,
+									JSON.stringify(fn(parser.state.module))
+								);
+								return true;
+							});
+					};
 					const context = compiler.context;
 					if (localOptions.__filename) {
 						if (localOptions.__filename === "mock") {
 							setConstant("__filename", "/index.js");
 						} else {
 							setModuleConstant("__filename", module =>
-								relative(compiler.inputFileSystem, context, module.resource)
+								path.relative(context, module.resource)
 							);
 						}
 						parser.hooks.evaluateIdentifier
@@ -74,7 +72,7 @@ class NodeStuffPlugin {
 								if (!parser.state.module) return;
 								const resource = parser.state.module.resource;
 								const i = resource.indexOf("?");
-								return evaluateToString(
+								return ParserHelpers.evaluateToString(
 									i < 0 ? resource : resource.substr(0, i)
 								)(expr);
 							});
@@ -84,21 +82,23 @@ class NodeStuffPlugin {
 							setConstant("__dirname", "/");
 						} else {
 							setModuleConstant("__dirname", module =>
-								relative(compiler.inputFileSystem, context, module.context)
+								path.relative(context, module.context)
 							);
 						}
 						parser.hooks.evaluateIdentifier
 							.for("__dirname")
 							.tap("NodeStuffPlugin", expr => {
 								if (!parser.state.module) return;
-								return evaluateToString(parser.state.module.context)(expr);
+								return ParserHelpers.evaluateToString(
+									parser.state.module.context
+								)(expr);
 							});
 					}
 					parser.hooks.expression
 						.for("require.extensions")
 						.tap(
 							"NodeStuffPlugin",
-							expressionIsUnsupported(
+							ParserHelpers.expressionIsUnsupported(
 								parser,
 								"require.extensions is not supported by webpack. Use a loader instead."
 							)
@@ -115,5 +115,4 @@ class NodeStuffPlugin {
 		);
 	}
 }
-
 module.exports = NodeStuffPlugin;

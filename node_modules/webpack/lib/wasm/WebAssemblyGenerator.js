@@ -2,31 +2,28 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
-const { RawSource } = require("webpack-sources");
 const Generator = require("../Generator");
+const Template = require("../Template");
 const WebAssemblyUtils = require("./WebAssemblyUtils");
+const { RawSource } = require("webpack-sources");
 
+const { editWithAST, addWithAST } = require("@webassemblyjs/wasm-edit");
+const { decode } = require("@webassemblyjs/wasm-parser");
 const t = require("@webassemblyjs/ast");
 const {
 	moduleContextFromModuleAST
 } = require("@webassemblyjs/helper-module-context");
-const { editWithAST, addWithAST } = require("@webassemblyjs/wasm-edit");
-const { decode } = require("@webassemblyjs/wasm-parser");
 
 const WebAssemblyExportImportedDependency = require("../dependencies/WebAssemblyExportImportedDependency");
 
-/** @typedef {import("webpack-sources").Source} Source */
-/** @typedef {import("../DependencyTemplates")} DependencyTemplates */
-/** @typedef {import("../Generator").GenerateContext} GenerateContext */
 /** @typedef {import("../Module")} Module */
-/** @typedef {import("../ModuleGraph")} ModuleGraph */
+/** @typedef {import("./WebAssemblyUtils").UsedWasmDependency} UsedWasmDependency */
 /** @typedef {import("../NormalModule")} NormalModule */
 /** @typedef {import("../RuntimeTemplate")} RuntimeTemplate */
-/** @typedef {import("../util/runtime").RuntimeSpec} RuntimeSpec */
-/** @typedef {import("./WebAssemblyUtils").UsedWasmDependency} UsedWasmDependency */
+/** @typedef {import("webpack-sources").Source} Source */
+/** @typedef {import("../Dependency").DependencyTemplate} DependencyTemplate */
 
 /**
  * @typedef {(ArrayBuffer) => ArrayBuffer} ArrayBufferTransform
@@ -45,6 +42,8 @@ const compose = (...fns) => {
 		value => value
 	);
 };
+
+// TODO replace with @callback
 
 /**
  * Removes the start instruction
@@ -204,7 +203,7 @@ const rewriteImportedGlobals = state => bin => {
 			if (init.id === "get_global") {
 				node.globalType.mutability = "var";
 
-				const initialGlobalIdx = init.args[0];
+				const initialGlobalidx = init.args[0];
 
 				node.init = [
 					createDefaultInitForGlobal(node.globalType),
@@ -217,7 +216,7 @@ const rewriteImportedGlobals = state => bin => {
 					 * They have the same indices as the init params, so use the
 					 * same index.
 					 */
-					t.instruction("get_local", [initialGlobalIdx]),
+					t.instruction("get_local", [initialGlobalidx]),
 					t.instruction("set_global", [t.indexLiteral(newGlobals.length)])
 				);
 			}
@@ -237,18 +236,10 @@ const rewriteImportedGlobals = state => bin => {
  * @param {Object} state state
  * @param {Object} state.ast Module's ast
  * @param {Module} state.module Module
- * @param {ModuleGraph} state.moduleGraph module graph
  * @param {Set<string>} state.externalExports Module
- * @param {RuntimeSpec} state.runtime runtime
  * @returns {ArrayBufferTransform} transform
  */
-const rewriteExportNames = ({
-	ast,
-	moduleGraph,
-	module,
-	externalExports,
-	runtime
-}) => bin => {
+const rewriteExportNames = ({ ast, module, externalExports }) => bin => {
 	return editWithAST(ast, bin, {
 		ModuleExport(path) {
 			const isExternal = externalExports.has(path.node.name);
@@ -256,9 +247,7 @@ const rewriteExportNames = ({
 				path.remove();
 				return;
 			}
-			const usedName = moduleGraph
-				.getExportsInfo(module)
-				.getUsedName(path.node.name, runtime);
+			const usedName = module.isUsed(path.node.name);
 			if (!usedName) {
 				path.remove();
 				return;
@@ -321,16 +310,15 @@ const addInitFunction = ({
 		return t.funcParam(importedGlobal.descr.valtype, id);
 	});
 
-	const funcBody = [];
-	importedGlobals.forEach((importedGlobal, index) => {
+	const funcBody = importedGlobals.reduce((acc, importedGlobal, index) => {
 		const args = [t.indexLiteral(index)];
 		const body = [
 			t.instruction("get_local", args),
 			t.instruction("set_global", args)
 		];
 
-		funcBody.push(...body);
-	});
+		return [...acc, ...body];
+	}, []);
 
 	if (typeof startAtFuncOffset === "number") {
 		funcBody.push(t.callInstruction(t.numberLiteralFromRaw(startAtFuncOffset)));
@@ -365,19 +353,14 @@ const addInitFunction = ({
 
 /**
  * Extract mangle mappings from module
- * @param {ModuleGraph} moduleGraph module graph
  * @param {Module} module current module
  * @param {boolean} mangle mangle imports
  * @returns {Map<string, UsedWasmDependency>} mappings to mangled names
  */
-const getUsedDependencyMap = (moduleGraph, module, mangle) => {
+const getUsedDependencyMap = (module, mangle) => {
 	/** @type {Map<string, UsedWasmDependency>} */
 	const map = new Map();
-	for (const usedDep of WebAssemblyUtils.getUsedDependencies(
-		moduleGraph,
-		module,
-		mangle
-	)) {
+	for (const usedDep of WebAssemblyUtils.getUsedDependencies(module, mangle)) {
 		const dep = usedDep.dependency;
 		const request = dep.request;
 		const exportName = dep.name;
@@ -386,8 +369,6 @@ const getUsedDependencyMap = (moduleGraph, module, mangle) => {
 	return map;
 };
 
-const TYPES = new Set(["webassembly"]);
-
 class WebAssemblyGenerator extends Generator {
 	constructor(options) {
 		super();
@@ -395,35 +376,20 @@ class WebAssemblyGenerator extends Generator {
 	}
 
 	/**
-	 * @param {NormalModule} module fresh module
-	 * @returns {Set<string>} available types (do not mutate)
-	 */
-	getTypes(module) {
-		return TYPES;
-	}
-
-	/**
-	 * @param {NormalModule} module the module
-	 * @param {string=} type source type
-	 * @returns {number} estimate size of the module
-	 */
-	getSize(module, type) {
-		const originalSource = module.originalSource();
-		if (!originalSource) {
-			return 0;
-		}
-		return originalSource.size();
-	}
-
-	/**
 	 * @param {NormalModule} module module for which the code should be generated
-	 * @param {GenerateContext} generateContext context for generate
+	 * @param {Map<Function, DependencyTemplate>} dependencyTemplates mapping from dependencies to templates
+	 * @param {RuntimeTemplate} runtimeTemplate the runtime template
+	 * @param {string} type which kind of code should be generated
 	 * @returns {Source} generated code
 	 */
-	generate(module, { moduleGraph, runtime }) {
-		const bin = module.originalSource().source();
+	generate(module, dependencyTemplates, runtimeTemplate, type) {
+		let bin = module.originalSource().source();
 
-		const initFuncId = t.identifier("");
+		const initFuncId = t.identifier(
+			Array.isArray(module.usedExports)
+				? Template.numberToIdentifer(module.usedExports.length)
+				: "__webpack_init__"
+		);
 
 		// parse it
 		const ast = decode(bin, {
@@ -441,7 +407,6 @@ class WebAssemblyGenerator extends Generator {
 		const nextTypeIndex = getNextTypeIndex(ast);
 
 		const usedDependencyMap = getUsedDependencyMap(
-			moduleGraph,
 			module,
 			this.options.mangleImports
 		);
@@ -460,10 +425,8 @@ class WebAssemblyGenerator extends Generator {
 		const transform = compose(
 			rewriteExportNames({
 				ast,
-				moduleGraph,
 				module,
-				externalExports,
-				runtime
+				externalExports
 			}),
 
 			removeStartFunc({ ast }),
@@ -488,9 +451,7 @@ class WebAssemblyGenerator extends Generator {
 
 		const newBin = transform(bin);
 
-		const newBuf = Buffer.from(newBin);
-
-		return new RawSource(newBuf);
+		return new RawSource(newBin);
 	}
 }
 

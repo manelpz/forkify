@@ -2,34 +2,17 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
-const util = require("util");
 const SortableSet = require("./util/SortableSet");
-const {
-	compareLocations,
-	compareChunks,
-	compareIterables
-} = require("./util/comparators");
+const compareLocations = require("./compareLocations");
 
-/** @typedef {import("./AsyncDependenciesBlock")} AsyncDependenciesBlock */
 /** @typedef {import("./Chunk")} Chunk */
-/** @typedef {import("./ChunkGraph")} ChunkGraph */
-/** @typedef {import("./Dependency").DependencyLocation} DependencyLocation */
 /** @typedef {import("./Module")} Module */
-/** @typedef {import("./ModuleGraph")} ModuleGraph */
+/** @typedef {import("./ModuleReason")} ModuleReason */
 
-/** @typedef {{id: number}} HasId */
-/** @typedef {{module: Module, loc: DependencyLocation, request: string}} OriginRecord */
-
-/**
- * @typedef {Object} RawChunkGroupOptions
- * @property {number=} preloadOrder
- * @property {number=} prefetchOrder
- */
-
-/** @typedef {RawChunkGroupOptions & { name?: string }} ChunkGroupOptions */
+/** @typedef {{module: Module, loc: TODO, request: string}} OriginRecord */
+/** @typedef {string|{name: string}} ChunkGroupOptions */
 
 let debugId = 5000;
 
@@ -68,7 +51,7 @@ const sortOrigin = (a, b) => {
 class ChunkGroup {
 	/**
 	 * Creates an instance of ChunkGroup.
-	 * @param {string|ChunkGroupOptions=} options chunk group options passed to chunkGroup
+	 * @param {ChunkGroupOptions=} options chunk group options passed to chunkGroup
 	 */
 	constructor(options) {
 		if (typeof options === "string") {
@@ -89,12 +72,10 @@ class ChunkGroup {
 		this.origins = [];
 		/** Indices in top-down order */
 		/** @private @type {Map<Module, number>} */
-		this._modulePreOrderIndices = new Map();
+		this._moduleIndices = new Map();
 		/** Indices in bottom-up order */
 		/** @private @type {Map<Module, number>} */
-		this._modulePostOrderIndices = new Map();
-		/** @type {number} */
-		this.index = undefined;
+		this._moduleIndices2 = new Map();
 	}
 
 	/**
@@ -135,7 +116,6 @@ class ChunkGroup {
 		this.options.name = value;
 	}
 
-	/* istanbul ignore next */
 	/**
 	 * get a uniqueId for ChunkGroup, made up of its member Chunk debugId's
 	 * @returns {string} a unique concatenation of chunk debugId's
@@ -228,10 +208,6 @@ class ChunkGroup {
 		}
 	}
 
-	/**
-	 * @param {Chunk} chunk chunk to remove
-	 * @returns {boolean} returns true if chunk was removed
-	 */
 	removeChunk(chunk) {
 		const idx = this.chunks.indexOf(chunk);
 		if (idx >= 0) {
@@ -245,21 +221,14 @@ class ChunkGroup {
 		return false;
 	}
 
-	/**
-	 * @param {ChunkGroup} group chunk ground to add
-	 * @returns {boolean} returns true if chunk ground was added
-	 */
-	addChild(group) {
-		if (this._children.has(group)) {
+	addChild(chunk) {
+		if (this._children.has(chunk)) {
 			return false;
 		}
-		this._children.add(group);
+		this._children.add(chunk);
 		return true;
 	}
 
-	/**
-	 * @returns {ChunkGroup[]} returns the children of this group
-	 */
 	getChildren() {
 		return this._children.getFromCache(getArray);
 	}
@@ -272,24 +241,16 @@ class ChunkGroup {
 		return this._children;
 	}
 
-	/**
-	 * @param {ChunkGroup} group the chunk group to remove
-	 * @returns {boolean} returns true if the chunk group was removed
-	 */
-	removeChild(group) {
-		if (!this._children.has(group)) {
+	removeChild(chunk) {
+		if (!this._children.has(chunk)) {
 			return false;
 		}
 
-		this._children.delete(group);
-		group.removeParent(this);
+		this._children.delete(chunk);
+		chunk.removeParent(this);
 		return true;
 	}
 
-	/**
-	 * @param {ChunkGroup} parentChunk the parent group to be added into
-	 * @returns {boolean} returns true if this chunk group was added to the parent group
-	 */
 	addParent(parentChunk) {
 		if (!this._parents.has(parentChunk)) {
 			this._parents.add(parentChunk);
@@ -298,21 +259,21 @@ class ChunkGroup {
 		return false;
 	}
 
-	/**
-	 * @returns {ChunkGroup[]} returns the parents of this group
-	 */
 	getParents() {
 		return this._parents.getFromCache(getArray);
+	}
+
+	setParents(newParents) {
+		this._parents.clear();
+		for (const p of newParents) {
+			this._parents.add(p);
+		}
 	}
 
 	getNumberOfParents() {
 		return this._parents.size;
 	}
 
-	/**
-	 * @param {ChunkGroup} parent the parent group
-	 * @returns {boolean} returns true if the parent group contains this group
-	 */
 	hasParent(parent) {
 		return this._parents.has(parent);
 	}
@@ -321,20 +282,16 @@ class ChunkGroup {
 		return this._parents;
 	}
 
-	/**
-	 * @param {ChunkGroup} chunkGroup the parent group
-	 * @returns {boolean} returns true if this group has been removed from the parent
-	 */
-	removeParent(chunkGroup) {
-		if (this._parents.delete(chunkGroup)) {
-			chunkGroup.removeChild(this);
+	removeParent(chunk) {
+		if (this._parents.delete(chunk)) {
+			chunk.removeChunk(this);
 			return true;
 		}
 		return false;
 	}
 
 	/**
-	 * @returns {Array} an array containing the blocks
+	 * @returns {Array} - an array containing the blocks
 	 */
 	getBlocks() {
 		return this._blocks.getFromCache(getArray);
@@ -348,17 +305,10 @@ class ChunkGroup {
 		return this._blocks.has(block);
 	}
 
-	/**
-	 * @returns {Iterable<AsyncDependenciesBlock>} blocks
-	 */
 	get blocksIterable() {
 		return this._blocks;
 	}
 
-	/**
-	 * @param {AsyncDependenciesBlock} block a block
-	 * @returns {boolean} false, if block was already added
-	 */
 	addBlock(block) {
 		if (!this._blocks.has(block)) {
 			this._blocks.add(block);
@@ -367,12 +317,6 @@ class ChunkGroup {
 		return false;
 	}
 
-	/**
-	 * @param {Module} module origin module
-	 * @param {DependencyLocation} loc location of the reference in the origin module
-	 * @param {string} request request name of the reference
-	 * @returns {void}
-	 */
 	addOrigin(module, loc, request) {
 		this.origins.push({
 			module,
@@ -381,9 +325,13 @@ class ChunkGroup {
 		});
 	}
 
-	/**
-	 * @returns {string[]} the files contained this chunk group
-	 */
+	containsModule(module) {
+		for (const chunk of this.chunks) {
+			if (chunk.containsModule(module)) return true;
+		}
+		return false;
+	}
+
 	getFiles() {
 		const files = new Set();
 
@@ -397,9 +345,10 @@ class ChunkGroup {
 	}
 
 	/**
+	 * @param {string=} reason reason for removing ChunkGroup
 	 * @returns {void}
 	 */
-	remove() {
+	remove(reason) {
 		// cleanup parents
 		for (const parentChunkGroup of this._parents) {
 			// remove this chunk from its parents
@@ -429,6 +378,11 @@ class ChunkGroup {
 			chunkGroup._parents.delete(this);
 		}
 
+		// cleanup blocks
+		for (const block of this._blocks) {
+			block.chunkGroup = null;
+		}
+
 		// remove chunks
 		for (const chunk of this.chunks) {
 			chunk.removeGroup(this);
@@ -437,55 +391,62 @@ class ChunkGroup {
 
 	sortItems() {
 		this.origins.sort(sortOrigin);
+		this._parents.sort();
+		this._children.sort();
 	}
 
 	/**
 	 * Sorting predicate which allows current ChunkGroup to be compared against another.
 	 * Sorting values are based off of number of chunks in ChunkGroup.
 	 *
-	 * @param {ChunkGraph} chunkGraph the chunk graph
 	 * @param {ChunkGroup} otherGroup the chunkGroup to compare this against
 	 * @returns {-1|0|1} sort position for comparison
 	 */
-	compareTo(chunkGraph, otherGroup) {
+	compareTo(otherGroup) {
 		if (this.chunks.length > otherGroup.chunks.length) return -1;
 		if (this.chunks.length < otherGroup.chunks.length) return 1;
-		return compareIterables(compareChunks(chunkGraph))(
-			this.chunks,
-			otherGroup.chunks
-		);
+		const a = this.chunks[Symbol.iterator]();
+		const b = otherGroup.chunks[Symbol.iterator]();
+		// eslint-disable-next-line no-constant-condition
+		while (true) {
+			const aItem = a.next();
+			const bItem = b.next();
+			if (aItem.done) return 0;
+			const cmp = aItem.value.compareTo(bItem.value);
+			if (cmp !== 0) return cmp;
+		}
 	}
 
-	/**
-	 * @param {ModuleGraph} moduleGraph the module graph
-	 * @param {ChunkGraph} chunkGraph the chunk graph
-	 * @returns {Record<string, ChunkGroup[]>} mapping from children type to ordered list of ChunkGroups
-	 */
-	getChildrenByOrders(moduleGraph, chunkGraph) {
-		/** @type {Map<string, {order: number, group: ChunkGroup}[]>} */
+	getChildrenByOrders() {
 		const lists = new Map();
 		for (const childGroup of this._children) {
-			for (const key of Object.keys(childGroup.options)) {
-				if (key.endsWith("Order")) {
-					const name = key.substr(0, key.length - "Order".length);
-					let list = lists.get(name);
-					if (list === undefined) {
-						lists.set(name, (list = []));
+			// TODO webpack 5 remove this check for options
+			if (typeof childGroup.options === "object") {
+				for (const key of Object.keys(childGroup.options)) {
+					if (key.endsWith("Order")) {
+						const name = key.substr(0, key.length - "Order".length);
+						let list = lists.get(name);
+						if (list === undefined) {
+							lists.set(name, (list = []));
+						}
+						list.push({
+							order: childGroup.options[key],
+							group: childGroup
+						});
 					}
-					list.push({
-						order: childGroup.options[key],
-						group: childGroup
-					});
 				}
 			}
 		}
-		/** @type {Record<string, ChunkGroup[]>} */
 		const result = Object.create(null);
 		for (const [name, list] of lists) {
 			list.sort((a, b) => {
 				const cmp = b.order - a.order;
 				if (cmp !== 0) return cmp;
-				return a.group.compareTo(chunkGraph, b.group);
+				// TODO webpack 5 remove this check of compareTo
+				if (a.group.compareTo) {
+					return a.group.compareTo(b.group);
+				}
+				return 0;
 			});
 			result[name] = list.map(i => i.group);
 		}
@@ -498,8 +459,8 @@ class ChunkGroup {
 	 * @param {number} index the index of the module
 	 * @returns {void}
 	 */
-	setModulePreOrderIndex(module, index) {
-		this._modulePreOrderIndices.set(module, index);
+	setModuleIndex(module, index) {
+		this._moduleIndices.set(module, index);
 	}
 
 	/**
@@ -507,8 +468,8 @@ class ChunkGroup {
 	 * @param {Module} module the module
 	 * @returns {number} index
 	 */
-	getModulePreOrderIndex(module) {
-		return this._modulePreOrderIndices.get(module);
+	getModuleIndex(module) {
+		return this._moduleIndices.get(module);
 	}
 
 	/**
@@ -517,8 +478,8 @@ class ChunkGroup {
 	 * @param {number} index the index of the module
 	 * @returns {void}
 	 */
-	setModulePostOrderIndex(module, index) {
-		this._modulePostOrderIndices.set(module, index);
+	setModuleIndex2(module, index) {
+		this._moduleIndices2.set(module, index);
 	}
 
 	/**
@@ -526,11 +487,10 @@ class ChunkGroup {
 	 * @param {Module} module the module
 	 * @returns {number} index
 	 */
-	getModulePostOrderIndex(module) {
-		return this._modulePostOrderIndices.get(module);
+	getModuleIndex2(module) {
+		return this._moduleIndices2.get(module);
 	}
 
-	/* istanbul ignore next */
 	checkConstraints() {
 		const chunk = this;
 		for (const child of chunk._children) {
@@ -549,17 +509,5 @@ class ChunkGroup {
 		}
 	}
 }
-
-ChunkGroup.prototype.getModuleIndex = util.deprecate(
-	ChunkGroup.prototype.getModulePreOrderIndex,
-	"ChunkGroup.getModuleIndex was renamed to getModulePreOrderIndex",
-	"DEP_WEBPACK_CHUNK_GROUP_GET_MODULE_INDEX"
-);
-
-ChunkGroup.prototype.getModuleIndex2 = util.deprecate(
-	ChunkGroup.prototype.getModulePostOrderIndex,
-	"ChunkGroup.getModuleIndex2 was renamed to getModulePostOrderIndex",
-	"DEP_WEBPACK_CHUNK_GROUP_GET_MODULE_INDEX_2"
-);
 
 module.exports = ChunkGroup;

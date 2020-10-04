@@ -2,7 +2,6 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
 const ChunkGroup = require("./ChunkGroup");
@@ -23,9 +22,7 @@ class Entrypoint extends ChunkGroup {
 	constructor(name) {
 		super(name);
 		/** @type {Chunk=} */
-		this._runtimeChunk = undefined;
-		/** @type {Chunk=} */
-		this._entrypointChunk = undefined;
+		this.runtimeChunk = undefined;
 	}
 
 	/**
@@ -42,37 +39,15 @@ class Entrypoint extends ChunkGroup {
 	 * @returns {void}
 	 */
 	setRuntimeChunk(chunk) {
-		this._runtimeChunk = chunk;
+		this.runtimeChunk = chunk;
 	}
 
 	/**
 	 * Fetches the chunk reference containing the webpack bootstrap code
-	 * @returns {Chunk | null} returns the runtime chunk or null if there is none
+	 * @returns {Chunk} returns the runtime chunk or first chunk in `this.chunks`
 	 */
 	getRuntimeChunk() {
-		if (this._runtimeChunk) return this._runtimeChunk;
-		for (const parent of this.parentsIterable) {
-			if (parent instanceof Entrypoint) return parent.getRuntimeChunk();
-		}
-		return null;
-	}
-
-	/**
-	 * Sets the chunk with the entrypoint modules for an entrypoint.
-	 * @param {Chunk} chunk the chunk being set as the entrypoint chunk.
-	 * @returns {void}
-	 */
-	setEntrypointChunk(chunk) {
-		this._entrypointChunk = chunk;
-	}
-
-	/**
-	 * Returns the chunk which contains the entrypoint modules
-	 * (or at least the execution of them)
-	 * @returns {Chunk} chunk
-	 */
-	getEntrypointChunk() {
-		return this._entrypointChunk;
+		return this.runtimeChunk || this.chunks[0];
 	}
 
 	/**
@@ -81,8 +56,7 @@ class Entrypoint extends ChunkGroup {
 	 * @returns {boolean} returns true if the replacement was successful
 	 */
 	replaceChunk(oldChunk, newChunk) {
-		if (this._runtimeChunk === oldChunk) this._runtimeChunk = newChunk;
-		if (this._entrypointChunk === oldChunk) this._entrypointChunk = newChunk;
+		if (this.runtimeChunk === oldChunk) this.runtimeChunk = newChunk;
 		return super.replaceChunk(oldChunk, newChunk);
 	}
 }

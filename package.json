@@ -22,8 +22,9 @@
     "axios": "^0.20.0",
     "babel-polyfill": "^6.26.0",
     "fractional": "^1.0.0",
-    "webpack": "^5.0.0-beta.29",
-    "webpack-cli": "^3.3.12"
+    "uniqid": "^4.1.1",
+    "webpack-cli": "^3.3.12",
+    "webpack2": "^3.11.1"
   },
   "devDependencies": {
     "@babel/core": "^7.11.5",
@@ -34,6 +35,7 @@
     "install": "^0.13.0",
     "npm": "^6.14.8",
     "regenerator-runtime": "^0.13.7",
+    "webpack": "^4.44.2",
     "webpack-dev-server": "^3.11.0"
   }
 }

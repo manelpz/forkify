@@ -1,29 +1,19 @@
 /*
 	MIT License http://www.opensource.org/licenses/mit-license.php
 */
-
 "use strict";
 
 const WebpackError = require("../WebpackError");
 
-/** @typedef {import("../ChunkGraph")} ChunkGraph */
 /** @typedef {import("../Module")} Module */
-/** @typedef {import("../ModuleGraph")} ModuleGraph */
 /** @typedef {import("../RequestShortener")} RequestShortener */
 
 /**
  * @param {Module} module module to get chains from
- * @param {ModuleGraph} moduleGraph the module graph
- * @param {ChunkGraph} chunkGraph the chunk graph
  * @param {RequestShortener} requestShortener to make readable identifiers
  * @returns {string[]} all chains to the module
  */
-const getInitialModuleChains = (
-	module,
-	moduleGraph,
-	chunkGraph,
-	requestShortener
-) => {
+const getInitialModuleChains = (module, requestShortener) => {
 	const queue = [
 		{ head: module, message: module.readableIdentifier(requestShortener) }
 	];
@@ -39,18 +29,15 @@ const getInitialModuleChains = (
 		let final = true;
 		/** @type {Set<Module>} */
 		const alreadyReferencedModules = new Set();
-		for (const connection of moduleGraph.getIncomingConnections(head)) {
-			const newHead = connection.originModule;
+		for (const reason of head.reasons) {
+			const newHead = reason.module;
 			if (newHead) {
-				if (!chunkGraph.getModuleChunks(newHead).some(c => c.canBeInitial()))
-					continue;
+				if (!newHead.getChunks().some(c => c.canBeInitial())) continue;
 				final = false;
 				if (alreadyReferencedModules.has(newHead)) continue;
 				alreadyReferencedModules.add(newHead);
 				const moduleName = newHead.readableIdentifier(requestShortener);
-				const detail = connection.explanation
-					? ` (${connection.explanation})`
-					: "";
+				const detail = reason.explanation ? ` (${reason.explanation})` : "";
 				const newMessage = `${moduleName}${detail} --> ${message}`;
 				if (visitedModules.has(newHead)) {
 					incompleteResults.add(`... --> ${newMessage}`);
@@ -63,8 +50,8 @@ const getInitialModuleChains = (
 				});
 			} else {
 				final = false;
-				const newMessage = connection.explanation
-					? `(${connection.explanation}) --> ${message}`
+				const newMessage = reason.explanation
+					? `(${reason.explanation}) --> ${message}`
 					: message;
 				results.add(newMessage);
 			}
@@ -82,20 +69,13 @@ const getInitialModuleChains = (
 module.exports = class WebAssemblyInInitialChunkError extends WebpackError {
 	/**
 	 * @param {Module} module WASM module
-	 * @param {ModuleGraph} moduleGraph the module graph
-	 * @param {ChunkGraph} chunkGraph the chunk graph
 	 * @param {RequestShortener} requestShortener request shortener
 	 */
-	constructor(module, moduleGraph, chunkGraph, requestShortener) {
-		const moduleChains = getInitialModuleChains(
-			module,
-			moduleGraph,
-			chunkGraph,
-			requestShortener
-		);
+	constructor(module, requestShortener) {
+		const moduleChains = getInitialModuleChains(module, requestShortener);
 		const message = `WebAssembly module is included in initial chunk.
 This is not allowed, because WebAssembly download and compilation must happen asynchronous.
-Add an async split point (i. e. import()) somewhere between your entrypoint and the WebAssembly module:
+Add an async splitpoint (i. e. import()) somewhere between your entrypoint and the WebAssembly module:
 ${moduleChains.map(s => `* ${s}`).join("\n")}`;
 
 		super(message);

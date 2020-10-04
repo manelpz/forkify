@@ -2,24 +2,32 @@
 	MIT License http://www.opensource.org/licenses/mit-license.php
 	Author Tobias Koppers @sokra
 */
-
 "use strict";
 
-const { STAGE_BASIC } = require("../OptimizationStages");
 const Queue = require("../util/Queue");
 const { intersect } = require("../util/SetHelpers");
 
-/** @typedef {import("../Compiler")} Compiler */
+const getParentChunksWithModule = (currentChunk, module) => {
+	const chunks = [];
+	const stack = new Set(currentChunk.parentsIterable);
+
+	for (const chunk of stack) {
+		if (chunk.containsModule(module)) {
+			chunks.push(chunk);
+		} else {
+			for (const parent of chunk.parentsIterable) {
+				stack.add(parent);
+			}
+		}
+	}
+
+	return chunks;
+};
 
 class RemoveParentModulesPlugin {
-	/**
-	 * @param {Compiler} compiler the compiler
-	 * @returns {void}
-	 */
 	apply(compiler) {
 		compiler.hooks.compilation.tap("RemoveParentModulesPlugin", compilation => {
 			const handler = (chunks, chunkGroups) => {
-				const chunkGraph = compilation.chunkGraph;
 				const queue = new Queue();
 				const availableModulesMap = new WeakMap();
 
@@ -43,7 +51,7 @@ class RemoveParentModulesPlugin {
 								// if we have not own info yet: create new entry
 								availableModules = new Set(availableModulesInParent);
 								for (const chunk of parent.chunks) {
-									for (const m of chunkGraph.getChunkModulesIterable(chunk)) {
+									for (const m of chunk.modulesIterable) {
 										availableModules.add(m);
 									}
 								}
@@ -52,7 +60,7 @@ class RemoveParentModulesPlugin {
 							} else {
 								for (const m of availableModules) {
 									if (
-										!chunkGraph.isModuleInChunkGroup(m, parent) &&
+										!parent.containsModule(m) &&
 										!availableModulesInParent.has(m)
 									) {
 										availableModules.delete(m);
@@ -81,31 +89,36 @@ class RemoveParentModulesPlugin {
 						availableModulesSets.length === 1
 							? availableModulesSets[0]
 							: intersect(availableModulesSets);
-					const numberOfModules = chunkGraph.getNumberOfChunkModules(chunk);
+					const numberOfModules = chunk.getNumberOfModules();
 					const toRemove = new Set();
 					if (numberOfModules < availableModules.size) {
-						for (const m of chunkGraph.getChunkModulesIterable(chunk)) {
+						for (const m of chunk.modulesIterable) {
 							if (availableModules.has(m)) {
 								toRemove.add(m);
 							}
 						}
 					} else {
 						for (const m of availableModules) {
-							if (chunkGraph.isModuleInChunk(m, chunk)) {
+							if (chunk.containsModule(m)) {
 								toRemove.add(m);
 							}
 						}
 					}
 					for (const module of toRemove) {
-						chunkGraph.disconnectChunkAndModule(chunk, module);
+						module.rewriteChunkInReasons(
+							chunk,
+							getParentChunksWithModule(chunk, module)
+						);
+						chunk.removeModule(module);
 					}
 				}
 			};
-			compilation.hooks.optimizeChunks.tap(
-				{
-					name: "RemoveParentModulesPlugin",
-					stage: STAGE_BASIC
-				},
+			compilation.hooks.optimizeChunksBasic.tap(
+				"RemoveParentModulesPlugin",
+				handler
+			);
+			compilation.hooks.optimizeExtractedChunksBasic.tap(
+				"RemoveParentModulesPlugin",
 				handler
 			);
 		});
