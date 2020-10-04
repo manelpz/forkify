@@ -55,7 +55,7 @@ elements.searchResPages.addEventListener('click', e =>{
 
 const controlRecipe = async() => {
     const id = window.location.hash.replace('#','');
-    console.log(id);
+    //console.log(id);
 
     if(id){
 
@@ -96,10 +96,16 @@ const controlList = () =>{
 
 elements.shopping.addEventListener('click', e => {
     const id = e.target.closest('.shopping__item').dataset.itemid;
+
     if(e.target.matches('.shopping__delete, .shopping__delete *')){
-        
+        //console.log("delete");
         state.list.deleteItem(id);
         listView.deleteItem(id);
+
+    }else if (e.target.matches('.shopping__count-value')){
+        //console.log("hi 4");
+        const val = parseFloat(e.target.value, 10);
+        state.list.updateCount(id, val);    
     }
 });
 

@@ -23,6 +23,7 @@ export default class List {
     }
 
     updateCount(id, newCount){
+        //console.log("hi3");
         this.items.find(el => el.id === id).count = newCount;
     }
 
