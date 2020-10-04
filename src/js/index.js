@@ -8,7 +8,7 @@ import List from './models/List';
 
 /*global state of the app*/
 const state = {};
-
+window.state = state;
 
 
 const controlSearch = async() => {
@@ -93,6 +93,15 @@ const controlList = () =>{
         listView.renderItem(item);
     });
 };
+
+elements.shopping.addEventListener('click', e => {
+    const id = e.target.closest('.shopping__item').dataset.itemid;
+    if(e.target.matches('.shopping__delete, .shopping__delete *')){
+        
+        state.list.deleteItem(id);
+        listView.deleteItem(id);
+    }
+});
 
 elements.recipe.addEventListener('click', e => {
 
