@@ -97,12 +97,12 @@ const controlLike = () => {
             state.recipe.img
         );
 
-        //likesView.toggleLikeBtn(true);
+        likesView.toggleLikeBtn(true);
         console.log(state.likes);
     }else{
         state.likes.deleteLike(currentID);
         console.log(state.likes);
-        //likesView.toggleLikeBtn(false);
+        likesView.toggleLikeBtn(false);
     }
 };
 
