@@ -2,6 +2,7 @@ import {elements, renderLoader, clearLoader} from './views/base';
 import * as searchView from './views/SearchView';
 import * as recipeView from './views/RecipeView';
 import * as listView from './views/listView';
+import * as likesView from './views/likesView';
 import Search from './models/Search';
 import Recipe from './models/Recipe';
 import List from './models/List';
@@ -96,10 +97,12 @@ const controlLike = () => {
             state.recipe.img
         );
 
+        //likesView.toggleLikeBtn(true);
         console.log(state.likes);
     }else{
         state.likes.deleteLike(currentID);
         console.log(state.likes);
+        //likesView.toggleLikeBtn(false);
     }
 };
 
