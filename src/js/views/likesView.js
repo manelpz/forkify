@@ -1,4 +1,6 @@
 import {elements} from './base';
+import {limitRecipeTitle} from './SearchView';
+
 
 export const toggleLikeBtn = isLiked => {
 
@@ -19,7 +21,7 @@ export const renderLikes = like => {
                     <img src="${like.img}" alt="${like.title}">
                 </figure>
                 <div class="likes__data">
-                    <h4 class="likes__name">${like.title}</h4>
+                    <h4 class="likes__name">${limitRecipeTitle(like.title)}</h4>
                     <p class="likes__author">T${like.author}</p>
                 </div>
             </a>
