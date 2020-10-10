@@ -10,8 +10,6 @@ import Likes from './models/Likes';
 
 /*global state of the app*/
 const state = {};
-window.state = state;
-
 
 const controlSearch = async() => {
     const query = searchView.getInput();
