@@ -44,7 +44,7 @@ elements.searchForm.addEventListener('submit', e=>{
 
 
 elements.searchResPages.addEventListener('click', e =>{
-    //console.log("hi");
+
     const btn = e.target.closest('.btn-inline');
     if(btn){
         const goToPage = parseInt(btn.dataset.goto,10);
@@ -55,7 +55,6 @@ elements.searchResPages.addEventListener('click', e =>{
 
 const controlRecipe = async() => {
     const id = window.location.hash.replace('#','');
-    //console.log(id);
 
     if(id){
 
@@ -107,10 +106,10 @@ const controlLike = () => {
 
         likesView.toggleLikeBtn(true);
         likesView.renderLikes(newLike);
-        //console.log(state.likes);
+
     }else{
         state.likes.deleteLike(currentID);
-        //console.log(state.likes);
+
         likesView.toggleLikeBtn(false);
         likesView.deleteLike(currentID);
     }
@@ -158,7 +157,7 @@ elements.recipe.addEventListener('click', e => {
     }else if (e.target.matches('.recipe__love, .recipe__love *')){
         controlLike();
     }
-    //console.log(state.recipe);
+
 });
 
 window.l = new List();
