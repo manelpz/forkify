@@ -104,11 +104,13 @@ const controlLike = () => {
         );
 
         likesView.toggleLikeBtn(true);
-        console.log(state.likes);
+        likesView.renderLikes(newLike);
+        //console.log(state.likes);
     }else{
         state.likes.deleteLike(currentID);
-        console.log(state.likes);
+        //console.log(state.likes);
         likesView.toggleLikeBtn(false);
+        likesView.deleteLike(currentID);
     }
     likesView.toggleLikeMenu(state.likes.getNumLikes());
 };
