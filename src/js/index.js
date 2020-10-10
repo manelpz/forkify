@@ -88,6 +88,9 @@ const controlRecipe = async() => {
     }
 };
 
+state.likes = new Likes();
+likesView.toggleLikeMenu(state.likes.getNumLikes());
+
 const controlLike = () => {
     if(!state.likes) state.likes = new Likes();
     const currentID = state.recipe.id;
@@ -107,6 +110,7 @@ const controlLike = () => {
         console.log(state.likes);
         likesView.toggleLikeBtn(false);
     }
+    likesView.toggleLikeMenu(state.likes.getNumLikes());
 };
 
 ['hashchange', 'load'].forEach(event => window.addEventListener(event, controlRecipe));
