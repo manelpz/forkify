@@ -1,6 +1,9 @@
 # forkify
-page for looking recipies from an API
+Page for looking recipies from an API
 
+***
+ Exercise from the Udemy Course [build web apps with vuejs firebase](https://www.udemy.com/course/build-web-apps-with-vuejs-firebase/)
+ ***
 
 
 ![1](https://user-images.githubusercontent.com/2387874/95694327-17db2e80-0bf7-11eb-9a46-0de7eaf482aa.png)
